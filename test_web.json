@@ -1,0 +1,7 @@
+{
+  "name": "add_episode",
+  "arguments": {
+    "name": "Web测试",
+    "episode_body": "通过Web界面添加的测试记忆"
+  }
+}

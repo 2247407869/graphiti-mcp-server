@@ -1,0 +1,141 @@
+version: '3.8'
+
+services:
+  # FalkorDB 图数据库
+  falkordb:
+    image: falkordb/falkordb:latest
+    container_name: graphiti-demo-falkordb
+    restart: unless-stopped
+    ports:
+      - "${FALKORDB_PORT:-6379}:6379"
+    volumes:
+      - ./data/falkordb:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Graphiti MCP服务器（直连老张API）
+  graphiti-mcp:
+    image: python:3.11-slim
+    container_name: graphiti-demo-mcp
+    restart: unless-stopped
+    working_dir: /app
+    command: >
+      bash -c "
+        pip install --no-cache-dir -r requirements.txt &&
+        python graphiti_mcp_server.py --host 0.0.0.0 --port 8000
+      "
+    ports:
+      - "${MCP_SERVER_PORT:-8000}:8000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.laozhang.ai/v1}
+      - MODEL_NAME=${MODEL_NAME:-gpt-4o-mini}
+      - SMALL_MODEL_NAME=${SMALL_MODEL_NAME:-gpt-4o-mini}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-text-embedding-ada-002}
+      - REDIS_HOST=falkordb
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${FALKORDB_PASSWORD:-}
+      - GRAPHITI_GROUP_ID=${GRAPHITI_GROUP_ID:-demo}
+      - SEMAPHORE_LIMIT=${SEMAPHORE_LIMIT:-5}
+      - LOG_LEVEL=DEBUG
+      - GRAPHITI_TELEMETRY_ENABLED=${GRAPHITI_TELEMETRY_ENABLED:-false}
+    volumes:
+      - ./mcp_server:/app
+      - ./data/mcp:/app/data
+      - ./logs:/app/logs
+    depends_on:
+      falkordb:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # LobeChat - 专业聊天界面
+  lobechat:
+    image: lobehub/lobe-chat:latest
+    container_name: graphiti-demo-lobechat
+    restart: unless-stopped
+    ports:
+      - "${LOBECHAT_PORT:-3210}:3210"
+    environment:
+      # 基础配置
+      - NEXT_PUBLIC_BASE_PATH=
+      - PORT=3210
+
+      # OpenAI API配置（使用老张API）
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - API_KEY_SELECT_MODE=manual
+      - OPENAI_PROXY_URL=${OPENAI_BASE_URL:-https://api.laozhang.ai/v1}
+
+      # MCP配置
+      - NEXT_PUBLIC_MCP_ENABLED=true
+      - MCP_SERVER_URL=http://graphiti-mcp:8000
+      - MCP_SERVERS=["{\"name\":\"graphiti-memory\",\"url\":\"http://graphiti-mcp:8000/mcp/stream\",\"transport\":\"http\",\"disabled\":false,\"timeout\":120000}"]
+
+      # 其他配置
+      - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
+      - CLERK_SECRET_KEY=
+      - NEXT_PUBLIC_ENABLE_CLERK_AUTH=false
+      - ENABLE_OAUTH_SSO=false
+      - NEXTAUTH_SECRET=graphiti-demo-secret-key-2024
+      - NEXTAUTH_URL=http://localhost:3210
+
+      # 功能开关
+      - FEATURE_FLAGS={"enableMCP":true,"enableMemory":true}
+      - NEXT_PUBLIC_ANALYTICS_VERCEL=false
+      - NEXT_PUBLIC_ANALYTICS_PLAUSIBLE=false
+
+    depends_on:
+      graphiti-mcp:
+        condition: service_healthy
+    volumes:
+      - ./data/lobechat:/app/data
+      - ./config/lobechat:/app/config
+
+  # 简单Web演示界面
+  demo-web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    container_name: graphiti-demo-web
+    restart: unless-stopped
+    ports:
+      - "${WEB_DEMO_PORT:-3000}:3000"
+    environment:
+      - MCP_SERVER_URL=http://graphiti-mcp:8000
+    depends_on:
+      graphiti-mcp:
+        condition: service_healthy
+    volumes:
+      - ./web:/app
+
+  tailscale:
+    image: tailscale/tailscale:latest
+    container_name: graphiti-demo-tailscale
+    hostname: graphiti-node
+    environment:
+      - TS_AUTHKEY=tskey-auth-kFVv1aYnZ221CNTRL-RfQ6nZPr6hRWizKeoeyVgRqv48xkLV3mE
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_USERSPACE=false
+    volumes:
+      - tailscale-data:/var/lib/tailscale
+    networks:
+      - default
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+
+networks:
+  default:
+    name: graphiti-demo-network
+
+volumes:
+  tailscale-data:

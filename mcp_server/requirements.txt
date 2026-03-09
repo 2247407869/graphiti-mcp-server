@@ -1,0 +1,26 @@
+# Graphiti MCP Server Dependencies
+
+# Core Graphiti with Google Gemini support
+graphiti-core[falkordb,google-genai]>=0.3.0
+
+# MCP Protocol
+mcp>=1.0.0
+
+# Web Framework
+fastapi>=0.104.0
+uvicorn>=0.24.0
+sse-starlette>=1.6.0
+
+# HTTP Client
+httpx>=0.25.0
+requests>=2.31.0
+
+# Utilities
+python-dotenv>=1.0.0
+pydantic>=2.5.0
+asyncio-mqtt>=0.13.0
+google-generativeai>=0.3.2
+
+# Redis/FalkorDB
+redis>=5.0.0
+falkordb>=1.0.0

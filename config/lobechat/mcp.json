@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "graphiti-memory": {
+      "url": "http://graphiti-mcp:8000/mcp/stream",
+      "transport": "http",
+      "disabled": false,
+      "autoApprove": [
+        "add_episode",
+        "search", 
+        "get_episodes"
+      ]
+    }
+  }
+}

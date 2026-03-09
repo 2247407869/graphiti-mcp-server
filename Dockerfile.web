@@ -1,0 +1,18 @@
+FROM node:18-alpine
+
+WORKDIR /app
+
+# 首先复制package.json
+COPY web/package.json ./
+
+# 安装依赖
+RUN npm install
+
+# 复制其余的Web应用文件
+COPY web/ ./
+
+# 暴露端口
+EXPOSE 3000
+
+# 启动命令
+CMD ["node", "server.js"]

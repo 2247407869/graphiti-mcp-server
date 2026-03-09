@@ -1,0 +1,27 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# 安装系统依赖
+RUN apt-get update && apt-get install -y \
+    curl \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# 复制requirements文件
+COPY mcp_server/requirements.txt .
+
+# 安装Python依赖
+RUN pip install --no-cache-dir -r requirements.txt
+
+# 复制MCP服务器代码
+COPY mcp_server/ .
+
+# 创建必要的目录
+RUN mkdir -p /app/data /app/logs
+
+# 暴露端口
+EXPOSE 8000
+
+# 启动命令
+CMD ["python", "graphiti_mcp_server.py", "--transport", "sse", "--host", "0.0.0.0", "--port", "8000"]
